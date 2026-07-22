@@ -54,11 +54,13 @@ export function parseAmount(raw: string): number {
   return Number.isNaN(value) ? NaN : sign * value;
 }
 
-const DATE_RE = /(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/;
-// A monetary amount at end of line: optional sign/currency, digit groups, and a
-// mandatory 2-digit decimal part. Requiring decimals avoids picking up stray
-// reference numbers (e.g. a branch code like "SUC 045").
-const AMOUNT_RE = /[-(]?\$?\s?\d{1,3}(?:[.,]\d{3})*[.,]\d{2}-?\)?\s*$/;
+// A transaction: a date, a description, and a monetary amount with a mandatory
+// 2-digit decimal part. Matched globally over the whole text (not line by line)
+// so it also works with PDF extractors that collapse everything onto one line.
+// Requiring decimals on the amount avoids picking up stray reference numbers
+// (e.g. a branch code like "SUC 045").
+const TX_RE =
+  /(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\s+(.+?)\s+([-(]?\$?\s?\d{1,3}(?:[.,]\d{3})*[.,]\d{2}\)?-?)(?=\s|$)/g;
 
 /**
  * Converts a matched date into an ISO YYYY-MM-DD string. Assumes day-first
@@ -77,37 +79,27 @@ function toIsoDate(day: string, month: string, year: string): string {
 /**
  * Extracts transactions from the raw text of a credit card statement.
  *
- * The heuristic looks for lines that start with a date and end with a monetary
- * amount, treating the text in between as the merchant description. Lines that
- * don't match this shape (headers, totals, page numbers) are ignored.
+ * Scans the whole text for the pattern `<date> <description> <amount>`, treating
+ * the text between the date and the amount as the merchant description. Fragments
+ * that don't match this shape (headers, totals, page numbers) are ignored.
  */
 export function parseTransactions(text: string): ParsedTransaction[] {
   if (!text) return [];
 
   const transactions: ParsedTransaction[] = [];
-  const lines = text.split(/\r?\n/);
+  TX_RE.lastIndex = 0;
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
+  let match: RegExpExecArray | null;
+  while ((match = TX_RE.exec(text)) !== null) {
+    const [, day, month, year, rawDescription, rawAmount] = match;
 
-    const dateMatch = trimmed.match(DATE_RE);
-    if (!dateMatch || dateMatch.index !== 0) continue;
-
-    const amountMatch = trimmed.match(AMOUNT_RE);
-    if (!amountMatch) continue;
-
-    const amount = parseAmount(amountMatch[0]);
+    const amount = parseAmount(rawAmount);
     if (Number.isNaN(amount) || amount === 0) continue;
 
-    const description = trimmed
-      .slice(dateMatch[0].length, trimmed.length - amountMatch[0].length)
-      .replace(/\s+/g, " ")
-      .trim();
-
+    const description = rawDescription.replace(/\s+/g, " ").trim();
     if (!description) continue;
 
-    const date = toIsoDate(dateMatch[1], dateMatch[2], dateMatch[3]);
+    const date = toIsoDate(day, month, year);
 
     transactions.push({
       date,

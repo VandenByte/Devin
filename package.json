@@ -14,10 +14,10 @@
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "next": "14.2.35",
-    "pdf-parse": "^2.4.5",
     "prisma": "^6.19.3",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "unpdf": "^1.6.2"
   },
   "devDependencies": {
     "@types/node": "^20",
