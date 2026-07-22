@@ -1,0 +1,23 @@
+// Prisma schema for the expense tracker.
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  date        DateTime
+  description String
+  amount      Float
+  category    String
+  createdAt   DateTime @default(now())
+
+  @@index([date])
+  @@index([category])
+}
